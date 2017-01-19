@@ -54,13 +54,13 @@ void loop()
         //bit of a hack to try to get v when in the regions of close tape
         if(distanceRemaining == ">1000")
         {
-            roughVelocity = 6.333333 / (micros() - lastHit);
+            roughVelocity = (6.333333/1000000.0) / (micros() - lastHit) ;
             distanceRemaining = "<1000";
             root["distanceRemaining"] = distanceRemaining;
         }
         else
         {
-            roughVelocity = 3.00 / (micros() - lastHit);
+            roughVelocity = (3.00/1000000.0) / (micros() - lastHit);
             distanceRemaining = "<500";
             root["distanceRemaining"] = distanceRemaining;
         }
@@ -68,7 +68,7 @@ void loop()
     }
     else //if in range of normally spaced tape, report velocity based on 100ft tape distance
     {
-        roughVelocity = tapeDistance / (micros() - lastHit); //velocity in ft/microsecond
+        roughVelocity = tapeDistance / (micros() - lastHit) / 1000000.0; //velocity in ft/second
     }
 
     // publish velocity on each loop
