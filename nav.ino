@@ -7,6 +7,7 @@ int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be sam
 volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
 const unsigned long thresholdTime = 100; //number of microseconds to track hits in
 unsigned long lastReset = micros();
+char* topic = "sensors/left/nav";
 
 // set up the mqtt client
 IPAddress server(192, 168, 0, 100);
@@ -24,8 +25,7 @@ void incrementHits()
 void setup()
 {
     pinMode(ir_pin, INPUT);
-    //have to map the pin to the actual interrupt number
-    attachInterrupt(digitalPinToInterrupt(1), incrementHits, FALLING);
+    attachInterrupt(digitalPinToInterrupt(1), incrementHits, FALLING);     //have to map the pin to the actual interrupt number
 
     //set up message ahead of time to reduce delay in sending message
     //will change the message later to be whatever it should be when braking should be on
@@ -35,15 +35,14 @@ void setup()
     mqtt.init();
     mqtt.loop();
 
-    //nothing for now but might subscribe to something later
-    //mqtt.client.subscribe();
+    mqtt.client.subscribe(topic);
 }
 
 void loop()
 {
     if(numHits > 1) //send the message if more than one hit in the time interval specified
     {
-        mqtt.client.publish("sensors/left/nav", mqtt.stringBuffer);
+        mqtt.client.publish(topic, mqtt.stringBuffer);
     }
 
     if((micros() - lastReset) > thresholdTime)
