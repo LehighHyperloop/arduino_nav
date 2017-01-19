@@ -4,7 +4,7 @@
 
 int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
 volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
-const unsigned long thresholdTime = 100; //number of milliseconds to track hits in
+const unsigned long thresholdTime = 100; //number of microseconds to track hits in
 unsigned long lastReset = micros();
 
 // set up the mqtt client
@@ -14,7 +14,7 @@ MQTT mqtt = MQTT(server, 1883);
 StaticJsonBuffer<200> jsonBuffer;
 JsonObject& root = jsonBuffer.createObject();
 
-//function called by interrupt 
+//function called by interrupt
 void incrementHits()
 {
     numHits++;
@@ -23,7 +23,8 @@ void incrementHits()
 void setup()
 {
     pinMode(ir_pin, INPUT);
-    attachInterrupt(1, incrementHits, FALLING);
+    //have to map the pin to the actual interrupt number
+    attachInterrupt(digitalPinToInterrupt(1), incrementHits, FALLING);
 
     //set up message ahead of time to reduce delay in sending message
     root["tape"] = "DETECTED";
