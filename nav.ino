@@ -2,8 +2,8 @@
 
 #include "mqtt.h"
 
-int ir_pin = 2; //idk what pin it really is, should be 2/3 to be same as Uno
-volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with it
+int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
+volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
 const unsigned long thresholdTime = 100; //number of milliseconds to track hits in
 unsigned long lastReset = micros();
 
@@ -14,7 +14,7 @@ MQTT mqtt = MQTT(server, 1883);
 StaticJsonBuffer<200> jsonBuffer;
 JsonObject& root = jsonBuffer.createObject();
 
-
+//function called by interrupt 
 void incrementHits()
 {
     numHits++;
@@ -32,7 +32,7 @@ void setup()
     mqtt.init();
     mqtt.loop();
 
-    //nothing for now but might subscribe to something later idk
+    //nothing for now but might subscribe to something later
     //mqtt.client.subscribe();
 }
 
