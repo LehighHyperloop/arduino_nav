@@ -1,6 +1,7 @@
 #include <ArduinoJson.h>
-
 #include "mqtt.h"
+
+//TODO: code for finding velocity by measuring time between single tapes
 
 int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
 volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
@@ -27,6 +28,7 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(1), incrementHits, FALLING);
 
     //set up message ahead of time to reduce delay in sending message
+    //will change the message later to be whatever it should be when braking should be on
     root["tape"] = "DETECTED";
     root.printTo(mqtt.stringBuffer, sizeof(mqtt.stringBuffer));
 
