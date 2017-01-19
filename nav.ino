@@ -1,15 +1,14 @@
 #include <ArduinoJson.h>
 #include "mqtt.h"
 
-int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
+const int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
+const char* topic = "sensors/left/nav";
+const unsigned long thresholdTime = 100000; //number of microseconds to track hits in
+const double tapeDistance = 100; //100 feet between single tapes
 volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
-const unsigned long thresholdTime = 100; //number of microseconds to track hits in
 unsigned long lastReset = micros();
 unsigned long lastHit = micros();
-char* topic = "sensors/left/nav";
 double roughVelocity = 0.0; //velocity based on time between tapes, using known distance between tapes
-const double tapeDistance = 100; //100 feet between single tapes
-bool past1000 = true;
 char* distanceRemaining = ">1000";
 
 // set up the mqtt client
@@ -53,24 +52,21 @@ void loop()
     if(numHits > 1) //send the message if more than one hit in the time interval specified
     {
         //bit of a hack to try to get v when in the regions of close tape
-        if(!past1000)
+        if(distanceRemaining == ">1000")
         {
             roughVelocity = 6.333333 / (micros() - lastHit);
             distanceRemaining = "<1000";
             root["distanceRemaining"] = distanceRemaining;
-            past1000 = true;
         }
         else
         {
-            roughVelocity = 3.0 / (micros() - lastHit);
+            roughVelocity = 3.00 / (micros() - lastHit);
             distanceRemaining = "<500";
             root["distanceRemaining"] = distanceRemaining;
         }
-
-        root["velocity"] = roughVelocity;
-        sendMessage(root);
+        //don't need to publish here since the next instruction is the publish after the else
     }
-    else //if in range of normally spaced tape, report v based on 100ft tape distance
+    else //if in range of normally spaced tape, report velocity based on 100ft tape distance
     {
         roughVelocity = tapeDistance / (micros() - lastHit); //velocity in ft/microsecond
     }
@@ -80,7 +76,7 @@ void loop()
     root["distanceRemaining"] = distanceRemaining;
     sendMessage(root);
 
-    if((micros() - lastReset) > thresholdTime)
+    if((micros() - lastReset) > thresholdTime) //reset timer every *thresholdTime* microseconds
     {
         numHits = 0;
         lastReset = micros();
