@@ -2,7 +2,7 @@
 
 #include "mqtt.h"
 
-int ir_pin = 1; //idk what pin it really is
+int ir_pin = 2; //idk what pin it really is, should be 2/3 to be same as Uno
 volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with it
 const unsigned long thresholdTime = 100; //number of milliseconds to track hits in
 unsigned long lastReset = micros();
