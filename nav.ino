@@ -1,84 +1,98 @@
 #include <ArduinoJson.h>
 #include "mqtt.h"
 
-const int ir_pin = 2; //might have to change pin to interrupt, should be 2/3 to be same as Uno
-const char* topic = "sensors/left/nav";
-const unsigned long thresholdTime = 100000; //number of microseconds to track hits in
-const double tapeDistance = 100; //100 feet between single tapes
-volatile int numHits = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
-unsigned long lastReset = micros();
-unsigned long lastHit = micros();
-double roughVelocity = 0.0; //velocity based on time between tapes, using known distance between tapes
-char* distanceRemaining = ">1000";
-
 // set up the mqtt client
 IPAddress server(192, 168, 0, 100);
 MQTT mqtt = MQTT(server, 1883);
 
-StaticJsonBuffer<200> jsonBuffer;
-JsonObject& root = jsonBuffer.createObject();
+const int ir_pin = 2;
+
+#define TICKS_PER_CALC (10)
+volatile int ticks = 0; //_MUST_ be volatile so compiler doesn't fuck with this/optimize it out
+volatile unsigned long ticks_total = 0;
+volatile unsigned long last_t = 0;
+volatile unsigned long last_count_delta = 0;
 
 //function called by interrupt
-void incrementHits()
+void intr()
 {
-    numHits++;
-    lastHit = micros();
+  ticks += 1;
+  ticks_total += 1;
+  if (ticks == TICKS_PER_CALC) {
+    unsigned long t = millis();
+    last_count_delta = t - last_t;
+    ticks = 0;
+    last_t = t;
+  }
 }
 
 void setup()
 {
-    pinMode(ir_pin, INPUT);
-    attachInterrupt(digitalPinToInterrupt(1), incrementHits, FALLING);     //have to map the pin to the actual interrupt number
+  Serial.begin(9600);
 
-    //set up message ahead of time to reduce overhead of building message
-    //will change the message later to be whatever it should be when
-    //we hit the last 1000 feet
+  /*flash onboard LED for debug*/
+  Serial.println();
+  Serial.println();
+  Serial.println();
+  for (int i = 0; i < 10; i++)
+  {
+    digitalWrite(13, HIGH);
+    Serial.print(F("."));
+    if (i % 10 == 0)
+    {
+      Serial.println();
+    }
+    delay(10);
+    digitalWrite(13, LOW);
+    delay(100);
+  }
+  Serial.println();
+  delay(50);
 
-    mqtt.init();
-    mqtt.loop();
+  pinMode(ir_pin, INPUT);
+  attachInterrupt(digitalPinToInterrupt(ir_pin), intr, FALLING);     //have to map the pin to the actual interrupt number
 
-    mqtt.client.subscribe(topic);
+  mqtt.init();
+
+  mqtt.loop();
+  mqtt.debug("nav (" __DATE__ " " __TIME__ ")");
+  Serial.println("nav (" __DATE__ " " __TIME__ ")");
+  mqtt.loop();
 }
 
-//given a filled JsonObject, publishes it to our topic
-void sendMessage(JsonObject &root)
-{
-    root.printTo(mqtt.stringBuffer, sizeof(mqtt.stringBuffer));
-    mqtt.client.publish(topic, mqtt.stringBuffer);
-}
-
+#define INTERVAL (100)
+unsigned long last_loop = 0;
+float rps = 0;
 void loop()
 {
-    if(numHits > 1) //send the message if more than one hit in the time interval specified
-    {
-        //bit of a hack to try to get v when in the regions of close tape
-        if(distanceRemaining == ">1000")
-        {
-            roughVelocity = (6.333333/1000000.0) / (micros() - lastHit) ;
-            distanceRemaining = "<1000";
-            root["distanceRemaining"] = distanceRemaining;
-        }
-        else
-        {
-            roughVelocity = (3.00/1000000.0) / (micros() - lastHit);
-            distanceRemaining = "<500";
-            root["distanceRemaining"] = distanceRemaining;
-        }
-        //don't need to publish here since the next instruction is the publish after the else
-    }
-    else //if in range of normally spaced tape, report velocity based on 100ft tape distance
-    {
-        roughVelocity = tapeDistance / (micros() - lastHit) / 1000000.0; //velocity in ft/second
+  mqtt.loop();
+
+  unsigned long t = millis();
+  int delta = t - last_loop;
+  if (delta >= INTERVAL) {
+    rps = TICKS_PER_CALC / 2 / float(last_count_delta / 1000.0);
+		unsigned int l_ticks_total = ticks_total;
+		unsigned int l_last_t = last_t;
+    if (t - last_t >= 1000) {
+      // Speed timed out, probably 0
+      rps = 0;
     }
 
-    // publish velocity on each loop
-    root["velocity"] = roughVelocity;
-    root["distanceRemaining"] = distanceRemaining;
-    sendMessage(root);
+    Serial.print(rps);
+    Serial.print(" ");
+    Serial.println(rps * 60);
 
-    if((micros() - lastReset) > thresholdTime) //reset timer every *thresholdTime* microseconds
-    {
-        numHits = 0;
-        lastReset = micros();
-    }
+    StaticJsonBuffer<MQTT_BUFFER_SIZE> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["rps"] = rps;
+		root["last_t"] = l_last_t;
+		root["ticks"] = l_ticks_total;
+    root["t"] = t;
+
+    root.printTo(mqtt.stringBuffer, sizeof(mqtt.stringBuffer));
+    mqtt.client.publish("sensor/right/rotation", mqtt.stringBuffer);
+
+    last_loop = t;
+  }
 }
+
